@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TT 8N">
+<meta name="theme-color" content="#1b1f23">
+<meta name="color-scheme" content="dark">
+<title>Audi TT 8N Garage</title>
+<style>
+:root{--bg:#1b1f23;--card:#262b30;--line:#3a4148;--tx:#e6e9ec;--mut:#9aa4ad;--red:#e0382b;--ok:#5fb37c;--r:10px;
+--f:"DIN Alternate","Bahnschrift","Avenir Next Condensed","Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.35 var(--f)}
+body{padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom))}
+header{padding:18px 16px 10px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.5px}
+.sub{color:var(--mut);font-size:13px}
+.add{background:var(--red);color:#fff;border:0;border-radius:50%;width:44px;height:44px;font-size:28px;line-height:1;flex:none}
+main{padding:0 12px}
+.card{background:var(--card);border-left:4px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0 0 10px;display:flex;gap:12px;align-items:center}
+.card.ok{border-left-color:var(--ok)}.card.warn{border-left-color:var(--red)}
+.card img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.body{flex:1;min-width:0}
+.t{font-weight:700;font-size:17px;overflow-wrap:anywhere}
+.d{color:var(--mut);font-size:14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.v{font-weight:700;white-space:nowrap}
+a{color:#8cc4ff}
+.empty{color:var(--mut);text-align:center;padding:40px 20px}
+.sum{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.sum .big{font-size:32px;font-weight:700}
+.sum div.row{display:flex;justify-content:space-between;color:var(--mut);font-size:14px;padding-top:4px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#14171a;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:var(--mut);padding:12px 0;font:inherit;font-size:13px;border-top:3px solid transparent}
+nav button.on{color:var(--tx);border-top-color:var(--red)}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:5}
+#sheet.show{display:flex}
+.panel{background:var(--bg);width:100%;max-height:92%;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+input,textarea{width:100%;background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:11px;font:inherit;font-size:16px}
+textarea{min-height:80px}
+input[type=checkbox]{width:22px;height:22px;vertical-align:middle;margin-right:8px}
+.chk{display:flex;align-items:center;margin-top:14px;color:var(--tx);font-size:16px}
+.btns{display:flex;gap:10px;margin-top:18px}
+.btns button,.tool{flex:1;padding:13px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--tx);font:inherit;font-weight:700}
+.btns .pri{background:var(--red);border-color:var(--red)}
+.btns .del{color:#ff8a80;flex:0 0 auto}
+.prev{max-width:100%;max-height:160px;border-radius:8px;margin-top:8px;display:block}
+.tools{display:flex;gap:10px;margin:18px 0 6px}
+</style>
+</head>
+<body>
+<header><div><h1 id="h"></h1><div class="sub">Audi TT 8N · 1.8T AUQ</div></div><button class="add" id="addb" aria-label="Hinzufügen">+</button></header>
+<main id="m"></main>
+<nav id="nav"></nav>
+<div id="sheet"><div class="panel" id="panel"></div></div>
+<input type="file" id="imp" accept="application/json" hidden>
+<script>
+const KEY='tt8n-garage';
+const TABS=[['info','Auto'],['parts','Teile'],['wish','Wunsch'],['done','Erledigt'],['todo','Offen'],['cost','Kosten']];
+const TITLES={info:'Fahrzeugdaten',parts:'Teileliste',wish:'Wunschliste',done:'Erledigt',todo:'Noch zu erledigen',cost:'Kostenübersicht'};
+const F={ // Felder je Bereich: [key, Label, Typ]
+ info:[['label','Bezeichnung (z. B. Radschrauben)','text'],['val','Wert (z. B. 120 Nm)','text'],['note','Notiz','area']],
+ parts:[['name','Teil','text'],['oem','OEM-Nummer','text'],['note','Notiz','area']],
+ wish:[['img','Bild','img'],['name','Name','text'],['link','Link','url'],['price','Preis in €','num'],['bought','Schon gekauft','chk']],
+ done:[['title','Was wurde gemacht?','text'],['date','Datum','date'],['km','Kilometerstand','num'],['cost','Kosten in €','num'],['note','Notiz','area']],
+ todo:[['title','Was ist zu tun?','text'],['due','Fällig am (z. B. TÜV)','date'],['note','Notiz','area'],['ok','Erledigt','chk']],
+ cost:[['title','Wofür?','text'],['date','Datum','date'],['amount','Betrag in €','num']]
+};
+let D;try{D=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+D=Object.assign({info:[],parts:[],wish:[],done:[],todo:[],cost:[]},D||{});
+let tab=localStorage.getItem(KEY+'-tab')||'info',pendingImg='';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const eur=n=>(+n||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const dt=s=>s?new Date(s+'T12:00').toLocaleDateString('de-DE'):'';
+function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert('Speicher voll – bitte Sicherung exportieren und Bilder verkleinern.')}}
+function setTab(t){tab=t;try{localStorage.setItem(KEY+'-tab',t)}catch(e){}render()}
+
+function costRows(){
+ const r=[];
+ D.done.forEach(i=>{if(+i.cost>0)r.push({k:'done',id:i.id,title:i.title,date:i.date,amt:+i.cost,src:'Erledigt'})});
+ D.wish.forEach(i=>{if(i.bought&&+i.price>0)r.push({k:'wish',id:i.id,title:i.name,date:'',amt:+i.price,src:'Wunschliste (gekauft)'})});
+ D.cost.forEach(i=>r.push({k:'cost',id:i.id,title:i.title,date:i.date,amt:+i.amount||0,src:'Manuell'}));
+ return r.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+function card(k,i){
+ let cls='',t='',d='',v='',img='';
+ if(k==='info'){t=i.label;d=i.note;v=i.val}
+ if(k==='parts'){t=i.name;d=(i.oem?'OEM: '+i.oem:'')+(i.note?'\n'+i.note:'')}
+ if(k==='wish'){t=i.name;img=i.img;cls=i.bought?'ok':'';v=i.price?eur(i.price):'';
+  d=(i.bought?'✓ Gekauft':'Noch nicht gekauft')+(i.link?'\n<a href="'+esc(i.link)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">Link öffnen</a>':'')}
+ if(k==='done'){t=i.title;cls='ok';v=i.cost?eur(i.cost):'';d=[dt(i.date),i.km?i.km+' km':'',i.note].filter(Boolean).join(' · ')}
+ if(k==='todo'){t=i.title;cls=i.ok?'ok':'warn';d=[i.ok?'✓ Erledigt':(i.due?'Fällig: '+dt(i.due):''),i.note].filter(Boolean).join('\n')}
+ const dd=k==='wish'?d:esc(d);
+ return '<div class="card '+cls+'" data-k="'+k+'" data-id="'+i.id+'">'+(img?'<img src="'+img+'" alt="">':'')+'<div class="body"><div class="t">'+esc(t)+'</div>'+(dd?'<div class="d">'+dd+'</div>':'')+'</div>'+(v?'<div class="v">'+esc(v)+'</div>':'')+'</div>';
+}
+function render(){
+ $('h').textContent=TITLES[tab];
+ $('nav').innerHTML=TABS.map(([k,l])=>'<button class="'+(k===tab?'on':'')+'" data-t="'+k+'">'+l+'</button>').join('');
+ let h='';
+ if(tab==='cost'){
+  const rows=costRows(),tot=rows.reduce((s,r)=>s+r.amt,0),yr=String(new Date().getFullYear());
+  const ty=rows.filter(r=>(r.date||'').startsWith(yr)).reduce((s,r)=>s+r.amt,0);
+  h+='<div class="sum"><div class="big">'+eur(tot)+'</div><div class="row"><span>Gesamt</span><span>Dieses Jahr: '+eur(ty)+'</span></div></div>';
+  h+=rows.length?rows.map(r=>'<div class="card" data-k="'+r.k+'" data-id="'+r.id+'"><div class="body"><div class="t">'+esc(r.title)+'</div><div class="d">'+esc([dt(r.date),r.src].filter(Boolean).join(' · '))+'</div></div><div class="v">'+eur(r.amt)+'</div></div>').join(''):'<div class="empty">Noch keine Kosten. Erledigte Arbeiten mit Preis erscheinen hier automatisch.</div>';
+ }else{
+  let L=[...D[tab]];
+  if(tab==='done')L.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(tab==='todo')L.sort((a,b)=>(a.ok-b.ok)||(a.due||'9').localeCompare(b.due||'9'));
+  if(tab==='wish')L.sort((a,b)=>(a.bought|0)-(b.bought|0));
+  h+=L.length?L.map(i=>card(tab,i)).join(''):'<div class="empty">Noch nichts hier. Tippe auf +, um einen Eintrag anzulegen.</div>';
+  if(tab==='info')h+='<div class="tools"><button class="tool" id="exp">Sicherung speichern</button><button class="tool" id="impb">Sicherung laden</button></div><div class="sub">Die Daten liegen nur in Safari auf diesem Handy. Mach ab und zu eine Sicherung.</div>';
+ }
+ $('m').innerHTML=h;
+}
+function openForm(k,id){
+ const it=id?D[k].find(x=>x.id===id):{};pendingImg=it.img||'';
+ let h='<h2 style="margin:0">'+(id?'Bearbeiten':'Neu')+'</h2>';
+ F[k].forEach(([n,l,t])=>{
+  const v=it[n]??'';
+  if(t==='chk')h+='<label class="chk"><input type="checkbox" name="'+n+'" '+(v?'checked':'')+'>'+l+'</label>';
+  else if(t==='area')h+='<label>'+l+'</label><textarea name="'+n+'">'+esc(v)+'</textarea>';
+  else if(t==='img')h+='<label>'+l+'</label><input type="file" accept="image/*" id="fimg"><img class="prev" id="prev" '+(v?'src="'+v+'"':'hidden')+' alt="">';
+  else h+='<label>'+l+'</label><input name="'+n+'" type="'+(t==='num'?'number':t)+'" '+(t==='num'?'step="0.01" inputmode="decimal"':'')+(t==='url'?' inputmode="url" placeholder="https://"':'')+' value="'+esc(v)+'">';
+ });
+ h+='<div class="btns">'+(id?'<button class="del" id="del">Löschen</button>':'')+'<button id="cancel">Abbrechen</button><button class="pri" id="ok">Speichern</button></div>';
+ $('panel').innerHTML=h;$('sheet').classList.add('show');
+ const fi=$('fimg');
+ if(fi)fi.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,480/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);pendingImg=c.toDataURL('image/jpeg',.7);$('prev').src=pendingImg;$('prev').hidden=false};im.src=r.result};r.readAsDataURL(f)};
+ $('cancel').onclick=close;
+ $('ok').onclick=()=>{
+  const o=it.id?it:{id:Date.now().toString(36)+Math.random().toString(36).slice(2,5)};
+  F[k].forEach(([n,,t])=>{const el=$('panel').querySelector('[name="'+n+'"]');
+   if(t==='chk')o[n]=el.checked;else if(t==='img')o[n]=pendingImg;else o[n]=el.value.trim()});
+  if(!it.id)D[k].push(o);save();close();render();
+ };
+ if(id)$('del').onclick=()=>{if(confirm('Eintrag löschen?')){D[k]=D[k].filter(x=>x.id!==id);save();close();render()}};
+}
+function close(){$('sheet').classList.remove('show')}
+$('sheet').onclick=e=>{if(e.target.id==='sheet')close()};
+$('addb').onclick=()=>openForm(tab==='cost'?'cost':tab);
+$('nav').onclick=e=>{const t=e.target.closest('[data-t]');if(t)setTab(t.dataset.t)};
+$('m').onclick=e=>{
+ if(e.target.id==='exp'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D)],{type:'application/json'}));a.download='tt8n-sicherung-'+new Date().toISOString().slice(0,10)+'.json';a.click();return}
+ if(e.target.id==='impb'){$('imp').click();return}
+ const c=e.target.closest('.card');if(c)openForm(c.dataset.k,c.dataset.id);
+};
+$('imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(confirm('Aktuelle Daten durch die Sicherung ersetzen?')){D=Object.assign({info:[],parts:[],wish:[],done:[],todo:[],cost:[]},j);save();render()}}catch(x){alert('Datei konnte nicht gelesen werden.')}};r.readAsText(f);e.target.value=''};
+render();
+</script>
+</body>
+</html>
